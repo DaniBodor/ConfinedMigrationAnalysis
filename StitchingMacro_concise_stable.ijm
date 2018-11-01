@@ -14,6 +14,10 @@ initialLUTlist = 0;
 // Alternatively, set an array of LUTs using strings
 // LUTlist = newArray("Magenta","Green","Grays");
 
+makeTempPRJ = 1;
+TempPRJ_LUT = "Ice";
+
+
 run("Set Measurements...", "area mean standard modal min integrated median skewness kurtosis redirect=None decimal=3");
 
 
@@ -172,13 +176,28 @@ function runStitch(name) {
 			run("Stack to Hyperstack...", "order=xytcz channels="+channels+" slices=1 frames="+nSlices/channels+" display=Composite");	// note the xytcz order!
 			FIX_BUGS(LUTlist, metaD);
 		}
-		saveAs("Tiff", dir+"Stitch_"+name+".tif");
+		saveAs("Tiff", base+"Stitch_"+name+".tif");
 		
 		if (DriftCorrection == 1){
 			run("Correct 3D drift", "channel=1 only=0 lowest=1 highest=1");
-			saveAs("Tiff", base+File.separator+"Stitch_"+name+"_driftCorrected.tif");
+			saveAs("Tiff", base+"Stitch_"+name+"_driftCorrected.tif");
 		}
-	
+
+		if (makeTempPRJ == 1){
+			for (i_ch = 0; i_ch < channels; i_ch++) {
+				run("Duplicate...", "duplicate channels="+i_ch);
+				DUP=getTitle();
+				%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+				run("Temporal-Color Code", "lut=["+TempPRJ_LUT+"] start=1 end="+nSlices);
+				rename("TempPRJ_Channel"+i_ch+1);
+				selectImage(DUP);
+				close();
+			}
+			///// when done fuse the individual channels into one stacked file
+			run("Images to Stack", "name=TempPRJStack title=TempPRJ_ use");
+			saveAs("Tiff", base+"Stitch_"+name+"_TempPRJ.tif");
+		}
+
 		//waitForUser("end of macro; from here will just close file and print final crap")
 		run("Close All");
 		run("Collect Garbage");
