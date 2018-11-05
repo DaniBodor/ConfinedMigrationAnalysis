@@ -145,66 +145,75 @@ function runStitch(name) {
 		
 		/////
 		/////	STITCHING PART OF MACRO
-		getDateAndTime(y,m,dW,dM,h,min,sec,msec);
-		print("stitching files: "+dir+name+"_{ii}.tif");
-		print("stitching start: "+h,":",IJ.pad(min,2),":",IJ.pad(sec,2));
-		print("");
-		run("Grid/Collection stitching", "type=[Grid: snake by rows] order=[Right & Down                ]"
-				+" grid_size_x="+gridx+" grid_size_y="+gridy+" tile_overlap="+overlap+" first_file_index_i=1"
-				+" directory=["+dir+"] file_names=["+name+"_{ii}.tif] output_textfile_name=TileConfiguration.txt"
-				+" fusion_method=[Linear Blending] regression_threshold=0.30 max/avg_displacement_threshold=2.50"
-				+" absolute_displacement_threshold=3.50 subpixel_accuracy computation_parameters=[Save memory (but be slower)]"
-				+" image_output=[Fuse and display]");		//######### UNCOMMENT THIS
+		if(File.exists(dir+name+"_"+(gridx*gridy)+".tif")){
+			getDateAndTime(y,m,dW,dM,h,min,sec,msec);
+			print("stitching files: "+dir+name+"_{ii}.tif");
+			print("stitching start: "+h,":",IJ.pad(min,2),":",IJ.pad(sec,2));
+			print("");
+			
+			run("Grid/Collection stitching", "type=[Grid: snake by rows] order=[Right & Down                ]"
+					+" grid_size_x="+gridx+" grid_size_y="+gridy+" tile_overlap="+overlap+" first_file_index_i=1"
+					+" directory=["+dir+"] file_names=["+name+"_{ii}.tif] output_textfile_name=TileConfiguration.txt"
+					+" fusion_method=[Linear Blending] regression_threshold=0.30 max/avg_displacement_threshold=2.50"
+					+" absolute_displacement_threshold=3.50 subpixel_accuracy computation_parameters=[Save memory (but be slower)]"
+					+" image_output=[Fuse and display]");		//######### UNCOMMENT THIS
+
 
 		
-		if (LUTlist==0)			LUTlist = FIX_BUGS(LUTlist, metaD);
-		else					FIX_BUGS(LUTlist, metaD);
-		/////
-		/////	FLAT FIELD CORRECTIONS FIXES UNEQUAL ILLUMINATION BETWEEN FRAMES
-		if (ffblur > 0){
-			ABC=getTitle();
-			run("Split Channels");
-			for (f = 0; f < nImages; f++) {
-				Q = "C"+d2s(f+1,0)+"-"+ABC;	// system naming of images after file splitting
-				selectImage(Q);
-				run("Pseudo flat field correction", "blurring="+ffblur);
-				selectImage(Q+"_background"); // system naming of bg image used for flat field correction
-				close();
+			if (LUTlist==0)			LUTlist = FIX_BUGS(LUTlist, metaD);
+			else					FIX_BUGS(LUTlist, metaD);
+			/////
+			/////	FLAT FIELD CORRECTIONS FIXES UNEQUAL ILLUMINATION BETWEEN FRAMES
+			if (ffblur > 0){
+				ABC=getTitle();
+				run("Split Channels");
+				for (f = 0; f < nImages; f++) {
+					Q = "C"+d2s(f+1,0)+"-"+ABC;	// system naming of images after file splitting
+					selectImage(Q);
+					run("Pseudo flat field correction", "blurring="+ffblur);
+					selectImage(Q+"_background"); // system naming of bg image used for flat field correction
+					close();
+				}
+	
+				run("Concatenate...", "all_open title="+ABC);
+				run("Stack to Hyperstack...", "order=xytcz channels="+channels+" slices=1 frames="+nSlices/channels+" display=Composite");	// note the xytcz order!
+				FIX_BUGS(LUTlist, metaD);
 			}
-
-			run("Concatenate...", "all_open title="+ABC);
-			run("Stack to Hyperstack...", "order=xytcz channels="+channels+" slices=1 frames="+nSlices/channels+" display=Composite");	// note the xytcz order!
-			FIX_BUGS(LUTlist, metaD);
-		}
-		saveAs("Tiff", base+"Stitch_"+name+".tif");
-		
-		if (DriftCorrection == 1){
-			run("Correct 3D drift", "channel=1 only=0 lowest=1 highest=1");
-			saveAs("Tiff", base+"Stitch_"+name+"_driftCorrected.tif");
-		}
-
-		if (makeTempPRJ == 1){
-			for (i_ch = 0; i_ch < channels; i_ch++) {
-				run("Duplicate...", "duplicate channels="+i_ch);
-				DUP=getTitle();
-				%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-				run("Temporal-Color Code", "lut=["+TempPRJ_LUT+"] start=1 end="+nSlices);
-				rename("TempPRJ_Channel"+i_ch+1);
-				selectImage(DUP);
-				close();
+			saveAs("Tiff", base+"Stitch_"+name+".tif");
+			
+			if (DriftCorrection == 1){
+				run("Correct 3D drift", "channel=1 only=0 lowest=1 highest=1");
+				saveAs("Tiff", base+"Stitch_"+name+"_driftCorrected.tif");
 			}
-			///// when done fuse the individual channels into one stacked file
-			run("Images to Stack", "name=TempPRJStack title=TempPRJ_ use");
-			saveAs("Tiff", base+"Stitch_"+name+"_TempPRJ.tif");
+	
+			if (makeTempPRJ == 1){
+				for (i_ch = 0; i_ch < channels; i_ch++) {
+					run("Duplicate...", "duplicate channels="+i_ch);
+					DUP=getTitle();
+					
+					run("Temporal-Color Code", "lut=["+TempPRJ_LUT+"] start=1 end="+nSlices);
+					rename("TempPRJ_Channel"+i_ch+1);
+					selectImage(DUP);
+					close();
+				}
+				///// when done fuse the individual channels into one stacked file
+				run("Images to Stack", "name=TempPRJStack title=TempPRJ_ use");
+				saveAs("Tiff", base+"Stitch_"+name+"_TempPRJ.tif");
+			}
+	
+			//waitForUser("end of macro; from here will just close file and print final crap")
+			run("Close All");
+			run("Collect Garbage");
+			
+			getDateAndTime(y,m,dW,dM,h,min,sec,msec);
+			print("finished: "+h,":",IJ.pad(min,2),":",IJ.pad(sec,2));
+			print("");
 		}
-
-		//waitForUser("end of macro; from here will just close file and print final crap")
-		run("Close All");
-		run("Collect Garbage");
-		
-		getDateAndTime(y,m,dW,dM,h,min,sec,msec);
-		print("finished: "+h,":",IJ.pad(min,2),":",IJ.pad(sec,2));
-		print("");
+		else {
+			print("skip grid assembly for: " + name)
+			print("number of images expected: " + (gridx*gridy));
+			print("number of images found: " + (getFileList(dir).length);
+		}
 	} else{
 		print("skipping file");
 	}
