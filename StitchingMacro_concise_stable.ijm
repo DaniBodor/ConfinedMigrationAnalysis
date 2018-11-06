@@ -94,7 +94,7 @@ function runStitch(name) {
 		/////
 		/////	SPLIT FILE INTO INDIVIDUAL POSITION FILES
 		if(split_now==1){ // split large .nd2 file into individual position .tifs
-			print(bigfile+" is now being opened");
+			print("opeing file");
 			run("Bio-Formats", "open=[" + bigfile + "] autoscale color_mode=Default open_all_series rois_import=[ROI manager]"
 					+" view=Hyperstack stack_order=XYCZT");
 			getDateAndTime(y,m,dW,dM,h,min,sec,msec);
@@ -105,7 +105,7 @@ function runStitch(name) {
 			getStatistics(area, mean, min, max, std, histogram);
 			metaD = getImageInfo();
 
-			while (nImages>0){		
+			while (nImages>0){
 				selectImage(nImages);
 				img=IJ.pad(nImages,2);   /// adds leading 0 for numbers under 10
 				run("Stack to Hyperstack...", "order=xyczt(default) channels="+channels+" slices=1 frames="+nSlices/channels
@@ -113,6 +113,7 @@ function runStitch(name) {
 				
 				//// ?REMOVE FIRST TIMEPOINT? (OFTEN USED AT 20-40' INTERVAL TO SECOND TP)
 				if (StripFirstTP == 1 && frames>1){
+					selectImage(nImages);
 					setSlice(1);
 					run("Delete Slice", "delete=frame");
 				}
@@ -158,25 +159,37 @@ function runStitch(name) {
 					+" absolute_displacement_threshold=3.50 subpixel_accuracy computation_parameters=[Save memory (but be slower)]"
 					+" image_output=[Fuse and display]");		//######### UNCOMMENT THIS
 
-
-		
 			if (LUTlist==0)			LUTlist = FIX_BUGS(LUTlist, metaD);
 			else					FIX_BUGS(LUTlist, metaD);
 			/////
 			/////	FLAT FIELD CORRECTIONS FIXES UNEQUAL ILLUMINATION BETWEEN FRAMES
 			if (ffblur > 0){
+				print("performing flatfield correction");
 				ABC=getTitle();
-				run("Split Channels");
-				for (f = 0; f < nImages; f++) {
-					Q = "C"+d2s(f+1,0)+"-"+ABC;	// system naming of images after file splitting
-					selectImage(Q);
+				if (channels>1){
+					run("Split Channels");
+				
+					for (f = 0; f < nImages; f++) {
+						Q = "C"+d2s(f+1,0)+"-"+ABC;	// system naming of images after file splitting
+						selectImage(Q);
+						run("Pseudo flat field correction", "blurring="+ffblur);
+						selectImage(Q+"_background"); // system naming of bg image used for flat field correction
+						close();
+					}
+		
+					run("Concatenate...", "all_open title="+ABC);
+					run("Stack to Hyperstack...", "order=xytcz channels="+channels+" slices=1 frames="+nSlices/channels+" display=Composite");	// note the xytcz order!
+				} else{
+					run("Duplicate...", "duplicate");
+					QRS=getTitle();
+					selectImage(ABC);
+					close();
+					selectImage(QRS);
+					rename(ABC);
 					run("Pseudo flat field correction", "blurring="+ffblur);
-					selectImage(Q+"_background"); // system naming of bg image used for flat field correction
+					selectImage(ABC+"_background"); // system naming of bg image used for flat field correction
 					close();
 				}
-	
-				run("Concatenate...", "all_open title="+ABC);
-				run("Stack to Hyperstack...", "order=xytcz channels="+channels+" slices=1 frames="+nSlices/channels+" display=Composite");	// note the xytcz order!
 				FIX_BUGS(LUTlist, metaD);
 			}
 			saveAs("Tiff", base+"Stitch_"+name+".tif");
@@ -187,17 +200,17 @@ function runStitch(name) {
 			}
 	
 			if (makeTempPRJ == 1){
+				ori=getTitle();
 				for (i_ch = 0; i_ch < channels; i_ch++) {
-					run("Duplicate...", "duplicate channels="+i_ch);
-					DUP=getTitle();
+					selectImage(ori);
+					print("creating temporal color code for channel "+i_ch+1);
+					run("Duplicate...", "duplicate channels="+i_ch+1);
 					
 					run("Temporal-Color Code", "lut=["+TempPRJ_LUT+"] start=1 end="+nSlices);
 					rename("TempPRJ_Channel"+i_ch+1);
-					selectImage(DUP);
-					close();
 				}
 				///// when done fuse the individual channels into one stacked file
-				run("Images to Stack", "name=TempPRJStack title=TempPRJ_ use");
+				if (channels>1) 	run("Images to Stack", "name=TempPRJStack title=TempPRJ_ use");
 				saveAs("Tiff", base+"Stitch_"+name+"_TempPRJ.tif");
 			}
 	
@@ -208,11 +221,11 @@ function runStitch(name) {
 			getDateAndTime(y,m,dW,dM,h,min,sec,msec);
 			print("finished: "+h,":",IJ.pad(min,2),":",IJ.pad(sec,2));
 			print("");
-		}
-		else {
-			print("skip grid assembly for: " + name)
+		} else {
+			print("skip grid assembly for: " + name);
 			print("number of images expected: " + (gridx*gridy));
-			print("number of images found: " + (getFileList(dir).length);
+			ASNMFGHJK = getFileList(dir);
+			print("number of images found: " + ASNMFGHJK.length);
 		}
 	} else{
 		print("skipping file");
@@ -268,7 +281,7 @@ function FINDCHANNELS() {
 	//print("\\Clear");
 	Stack.getDimensions(width, height, channels, slices, frames)
 	MD = getMetadata("");
-	begindex = indexOf(MD,"Line:1; ExW:385; Power #1");
+	begindex = indexOf(MD,"Line:1; ExW:3");
 	endex = indexOf(MD,"LiveSpeedUp")+10;
 	LineMD = substring(MD,begindex,endex);
 	
